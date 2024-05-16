@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 
 REM Create virtual environment named TicTacToe using Python 3.12
-"%PYTHON_312_PATH%" -m venv TicTacToe
+python -m venv TicTacToe
 
 REM Activate the virtual environment
 call TicTacToe\Scripts\activate
