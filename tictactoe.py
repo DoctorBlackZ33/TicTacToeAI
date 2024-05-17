@@ -24,7 +24,7 @@ class TicTacToe:
         count=[0,0]
         p=1
         #For both players
-        for k in range(2):
+        for _ in range(2):
             p*=-1
             #Iterate throught rows and columns 
             for i in range(3):
