@@ -21,9 +21,11 @@ class TicTacToe:
 
     #Checks if anyone has won yet, returns 1 or -1 depending on which player won and 0 if there is no winner (yet)
     def check_state(self):
-        count=(0,0)
+        count=[0,0]
+        p=1
         #For both players
-        for p in range(-1,1,2):
+        for k in range(2):
+            p*=-1
             #Iterate throught rows and columns 
             for i in range(3):
                 for j in range(3):
@@ -35,13 +37,18 @@ class TicTacToe:
                         count[0]+=1
                 #Returns the player who won if there is one either vertically or horizontally
                 if(count[1]==3):
+                    print(self.board)
+                    print("win "+str(p))
                     return p
                 if(count[0]==3):
                     return p
                 #Resets counter
-                count[0], count[1] = 0
+                count[0] = 0
+                count[1] = 0
             #Checks for a winner diagonally with logic: if middle and left top and left bottom are the same player or if middle and right top and left bottom are the same player return the player
-            if(self.board[1,1] and ((self.board[0,0] and self.board[2,2]) or (self.board[0,2] and self.board[2,0]) == p)):
+            if((self.board[1,1]==p and self.board[0,0]==p and self.board[2,2]==p) or (self.board[1,1]==p and self.board[0,2]==p and self.board[2,0]==p)):
+                print(self.board)
+                print("win " + str(p))
                 return p
         #Return 0 if noone has won (yet)
         return 0
@@ -58,11 +65,3 @@ class TicTacToe:
                 if (self.board[i,j]==0):
                     actions.append((i,j))
         return actions
-
-        
-    
-    
-    
-                
-            
-
