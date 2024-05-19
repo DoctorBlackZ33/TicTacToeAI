@@ -14,13 +14,17 @@ class TicTacToe:
         self.player = 1
         return self.board
     
+    #added for easier understanding, board could also be referenced by TicTacToe().board 
+    def get_board(self):
+        return self.board
+    
     #Plays a move and fills the board with either 1 or -1 depending on which players turn it is and changes the player
     def play(self, move):
         self.board[move[0],move[1]] = self.player
-        self.player*=-1
+        self.player*=-1 #VERY IMPORTANT: when finished, test if ai can disdinguish between player -1 and 1. does the ai recognize for what side they are playing? if not maybe consider extending the state to have an extra value for the current player
 
     #Checks if anyone has won yet, returns 1 or -1 depending on which player won and 0 if there is no winner (yet)
-    def check_state(self):
+    def is_winner(self):
         count=[0,0]
         p=1
         #For both players
@@ -37,19 +41,30 @@ class TicTacToe:
                         count[0]+=1
                 #Returns the player who won if there is one either vertically or horizontally
                 if(count[1]==3):
-                    print(self.board)
-                    print("win "+str(p))
-                    return p
+                    #print(self.board)
+                    #print("win "+str(p))
+                    if(p*-1==self.player):
+                        return 1
+                    elif(p==self.player):
+                        print(1)
+                        return -1
                 if(count[0]==3):
-                    return p
+                    if(p*-1==self.player):
+                        return 1
+                    elif(p==self.player):
+                        print(2)
+                        return -1
                 #Resets counter
                 count[0] = 0
                 count[1] = 0
             #Checks for a winner diagonally with logic: if middle and left top and left bottom are the same player or if middle and right top and left bottom are the same player return the player
             if((self.board[1,1]==p and self.board[0,0]==p and self.board[2,2]==p) or (self.board[1,1]==p and self.board[0,2]==p and self.board[2,0]==p)):
-                print(self.board)
-                print("win " + str(p))
-                return p
+                #print(self.board)
+                #print("win " + str(p))
+                if(p*-1==self.player):
+                        return 1
+                elif(p==self.player):
+                        return -1
         #Return 0 if noone has won (yet)
         return 0
     
