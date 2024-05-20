@@ -117,7 +117,6 @@ class TrainNetwork():
                 q = transition[3]
             else:
                 #the q values are updated according to 𝑄(𝑠,𝑎)←(1-𝛼)𝑄(𝑠,𝑎)+𝛼[𝑟+𝛾max𝑎′𝑄(𝑠′,𝑎′)−𝑄(𝑠,𝑎)] from https://en.wikipedia.org/wiki/Q-learning because i may want to implement dynamic learning rate
-
                 q = (1-self.alpha)*current_qs_list[index][action_to_board] + self.alpha*(transition[3] + self.gamma * np.max(future_qs_list[index]))
 
             current_qs = current_qs_list[index]
@@ -129,7 +128,7 @@ class TrainNetwork():
         
         #gives a progress bar for training every time the target model gets synched according to the synch_every_n_episodes, else it just increases the synch_counter and does model.fit without showing progress (verbose=0)
         if self.synch_counter >= self.synch_every_n_episodes:
-            self.history.append(self.model.fit(np.array(x), np.array(y), batch_size=self.batch_size, shuffle=False, verbose=0))
+            self.history.append(self.model.fit(np.array(x), np.array(y), batch_size=self.batch_size, shuffle=False, verbose=1))
             self.target_model.set_weights(self.model.get_weights())
             self.synch_counter=0
         else:
