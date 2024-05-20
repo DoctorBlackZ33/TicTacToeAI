@@ -1,0 +1,13 @@
+{
+    "training_settings": {
+        "alpha": 0.001,
+        "gamma": 0.95
+    },
+    "epsilon_settings": {
+        "epsilon": 1.0
+    },
+    "reward_settings": {
+        "reward_win": 1,
+        "reward_lose": -1
+    }
+}

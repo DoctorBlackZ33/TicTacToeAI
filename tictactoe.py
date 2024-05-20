@@ -77,6 +77,12 @@ class TicTacToe:
         actions = []
         for i in range(3):
             for j in range(3):
-                if (self.board[i,j]==0):
+                if (self.board[i,j] == 0):
                     actions.append((i,j))
         return actions
+    
+    def action_is_valid(self, state, action):
+        if (state[action[0], action[1]] == 0):
+            return True
+        elif (state[action[0], action[1]] != 0):
+            return False
