@@ -8,21 +8,23 @@ from collections import deque #deque seems to be a faster alternative to lists a
 from tictactoe import TicTacToe
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
+import matplotlib.pyplot as plt
+
 
 alpha=0.1
 gamma = 0.9
 epsilon_start = 1.0
-epsilon_min = 0.01
-epsilon_decay = 0.99
+epsilon_min = 0.001
+epsilon_decay = 0.9999
 learning_rate = 0.001
 batch_size = 64
-episodes = 200
+episodes = 20000
 reward_win=1
 reward_lose=-1
 reward_draw=0.5
 reward_action=0
 reward_illegal=-100
-min_memory_size = 100
+min_memory_size = 10000
 
 class TrainNetwork():
     def __init__(self):
@@ -139,10 +141,26 @@ class TrainNetwork():
     def run_training(self):
         env = TicTacToe()
         start_time = time.time()
+        test_qs = []
+        
+        test_boards = (
+            np.zeros((3, 3), dtype=int),
+            np.array(([0, 0, 0], [0, 0, 0], [0, 0, 0]), dtype=int),
+            np.array(([0, 0, 0], [0, 1, 0], [0, 0, 0]), dtype=int),
+            np.array(([1, 1, 0], [-1, 0, -1], [0, 0, 0]), dtype=int),
+            np.array(([1, 0, 0], [0, -1, 0], [-1, 1, 0]), dtype=int),
+            np.array(([0, -1, 0], [0, 1, -1], [0, 0, 1]), dtype=int),
+            np.array(([1, -1, 1], [-1, -1, 1], [0, 0, -1]), dtype=int)
+        )
+
         for i in tqdm(range(self.episodes), desc="Training Progress", unit="episode"):
             episode_start_time = time.time()
             done = False
             env.reset()
+            test_qs.append([])
+            for k in test_boards:
+                q_list = self.get_qs(k.flatten())
+                test_qs[i].append(q_list)
             while not done:
                 current_state = env.get_board().flatten()
                 state = np.copy(env.get_board())
@@ -166,11 +184,44 @@ class TrainNetwork():
             if self.epsilon > self.epsilon_min:
                 self.epsilon *= self.epsilon_decay
             self.train()
+                    # Initialize array to store sorted Q-values for all boards
+        sorted_q_values_for_all_boards = np.zeros((9, len(test_boards)))
+
+        # Plotting the Q-values for each board configuration over episodes
+        for board_idx, board in enumerate(test_boards):
+            fig, ax = plt.subplots()
+            ax.set_title(f'Q-values for Board Configuration {board_idx + 1}')
+            ax.set_xlabel('Episode')
+            ax.set_ylabel('Q-values')
+            
+            final_q_values = []
+
+            for action_idx in range(9):
+                q_values_over_time = [test_qs[episode][board_idx][action_idx] for episode in range(self.episodes)]
+                ax.plot(q_values_over_time, label=f'Action {action_idx}')
+                final_q_values.append((action_idx, q_values_over_time[-1]))
+
+            # Sort the final Q-values from highest to lowest
+            final_q_values.sort(key=lambda x: x[1], reverse=True)
+
+            # Store the sorted Q-values in the array
+            for rank, (action_idx, q_value) in enumerate(final_q_values):
+                sorted_q_values_for_all_boards[rank, board_idx] = q_value
+
+            # Create custom legend with sorted Q-values
+            legend_labels = [f'Action {idx}: {value:.2f}' for idx, value in final_q_values]
+            ax.legend(legend_labels, loc='center left', bbox_to_anchor=(1, 0.5))
+            
+            plt.show()
+            plt.close(fig)
             episode_end_time = time.time()
             elapsed_time = episode_end_time - start_time
             episode_duration = episode_end_time - episode_start_time
             estimated_total_time = episode_duration * self.episodes
             remaining_time = estimated_total_time - elapsed_time
+        # Print the sorted Q-values for all boards
+        print("Sorted Q-values for all boards (highest to lowest):")
+        print(sorted_q_values_for_all_boards) 
 
         print(self.history)
         for k in range(2):
@@ -200,28 +251,36 @@ class TrainNetwork():
                 print(" " )
                 print("//////////////////////////////////////")
                 print(" ")
+
     def test_training(self):
         env = TicTacToe()
-        self.mibatch_size=self.batch_size
-        test_qs=[]
-        #start_time = time.time()
-        test_boards=(np.zeros((3,3), dtype=int), np.array(([0,0,0], [0,0,0], [0,0,0]), dtype=int), np.array(([0,0,0], [0,1,0], [0,0,0]), dtype=int), np.array(([1,1,0], [-1,0,-1], [0,0,0]), dtype=int), np.array(([1,0,0], [0,-1,0], [-1,1,0]), dtype=int), np.array(([0,-1,0], [0,1,-1], [0,0,1]), dtype=int), np.array(([1,-1,1], [-1,-1,1], [0,0,-1]), dtype=int))
+        self.mibatch_size = self.batch_size
+        test_qs = []
+        
+        test_boards = (
+            np.zeros((3, 3), dtype=int),
+            np.array(([0, 0, 0], [0, 0, 0], [0, 0, 0]), dtype=int),
+            np.array(([0, 0, 0], [0, 1, 0], [0, 0, 0]), dtype=int),
+            np.array(([1, 1, 0], [-1, 0, -1], [0, 0, 0]), dtype=int),
+            np.array(([1, 0, 0], [0, -1, 0], [-1, 1, 0]), dtype=int),
+            np.array(([0, -1, 0], [0, 1, -1], [0, 0, 1]), dtype=int),
+            np.array(([1, -1, 1], [-1, -1, 1], [0, 0, -1]), dtype=int)
+        )
+        
         for i in range(self.episodes):
-            #episode_start_time = time.time()
-            done=False
+            test_qs.append([])
+            done = False
             env.reset()
-            self.epsilon=0
+            
             for k in test_boards:
-                q_list=self.get_qs(k.flatten())
+                q_list = self.get_qs(k.flatten())
                 test_qs[i].append(q_list)
 
-            while(not done):
+            while not done:
                 current_state = env.get_board().flatten()
-                action=self.select_action(env)
-                state=np.copy(env.get_board())
-                qs=self.get_qs(state.flatten())
-                print(qs)
-                print(tf.argsort(qs,direction='DESCENDING').numpy())
+                action = self.select_action(env)
+                state = np.copy(env.get_board())
+                qs = self.get_qs(state.flatten())
                 env.play(action)
                 new_state = env.get_board().flatten()
                 board_state = env.is_winner()
@@ -241,10 +300,40 @@ class TrainNetwork():
             if self.epsilon > self.epsilon_min:
                 self.epsilon *= self.epsilon_decay
             self.train()
-        counter=0
-        for s in test_boards:
-            print(s)
-            print
+        
+        # Initialize array to store sorted Q-values for all boards
+        sorted_q_values_for_all_boards = np.zeros((9, len(test_boards)))
+
+        # Plotting the Q-values for each board configuration over episodes
+        for board_idx, board in enumerate(test_boards):
+            fig, ax = plt.subplots()
+            ax.set_title(f'Q-values for Board Configuration {board_idx + 1}')
+            ax.set_xlabel('Episode')
+            ax.set_ylabel('Q-values')
+            
+            final_q_values = []
+
+            for action_idx in range(9):
+                q_values_over_time = [test_qs[episode][board_idx][action_idx] for episode in range(self.episodes)]
+                ax.plot(q_values_over_time, label=f'Action {action_idx}')
+                final_q_values.append((action_idx, q_values_over_time[-1]))
+
+            # Sort the final Q-values from highest to lowest
+            final_q_values.sort(key=lambda x: x[1], reverse=True)
+
+            # Store the sorted Q-values in the array
+            for rank, (action_idx, q_value) in enumerate(final_q_values):
+                sorted_q_values_for_all_boards[rank, board_idx] = q_value
+
+            # Create custom legend with sorted Q-values
+            legend_labels = [f'Action {idx}: {value:.2f}' for idx, value in final_q_values]
+            ax.legend(legend_labels, loc='center left', bbox_to_anchor=(1, 0.5))
+            
+            plt.show()
+        
+        # Print the sorted Q-values for all boards
+        print("Sorted Q-values for all boards (highest to lowest):")
+        print(sorted_q_values_for_all_boards)            
             #episode_end_time = time.time()
             #elapsed_time = episode_end_time - start_time
             #episode_duration = episode_end_time - episode_start_time
@@ -265,4 +354,4 @@ def format_time(seconds):
 
 if __name__ == "__main__":
     trainer = TrainNetwork()
-    trainer.test_training()
+    trainer.run_training()
