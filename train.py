@@ -64,7 +64,7 @@ class TrainNetwork():
         model = Sequential()
 
         model.add(tf.keras.layers.Input(shape=(9,)))
-        model.add(Dense(36, activation='relu'))
+        model.add(Dense(9, activation='relu'))
         model.add(Dense(9, activation='linear'))
 
         model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
@@ -128,7 +128,7 @@ class TrainNetwork():
         
         #gives a progress bar for training every time the target model gets synched according to the synch_every_n_episodes, else it just increases the synch_counter and does model.fit without showing progress (verbose=0)
         if self.synch_counter >= self.synch_every_n_episodes:
-            self.history.append(self.model.fit(np.array(x), np.array(y), batch_size=self.batch_size, shuffle=False, verbose=1))
+            self.history.append(self.model.fit(np.array(x), np.array(y), batch_size=self.batch_size, shuffle=False, verbose=0))
             self.target_model.set_weights(self.model.get_weights())
             self.synch_counter=0
         else:
@@ -200,6 +200,59 @@ class TrainNetwork():
                 print(" " )
                 print("//////////////////////////////////////")
                 print(" ")
+    def test_training(self):
+        env = TicTacToe()
+        self.mibatch_size=self.batch_size
+        test_qs=[]
+        #start_time = time.time()
+        test_boards=(np.zeros((3,3), dtype=int), np.array(([0,0,0], [0,0,0], [0,0,0]), dtype=int), np.array(([0,0,0], [0,1,0], [0,0,0]), dtype=int), np.array(([1,1,0], [-1,0,-1], [0,0,0]), dtype=int), np.array(([1,0,0], [0,-1,0], [-1,1,0]), dtype=int), np.array(([0,-1,0], [0,1,-1], [0,0,1]), dtype=int), np.array(([1,-1,1], [-1,-1,1], [0,0,-1]), dtype=int))
+        for i in range(self.episodes):
+            #episode_start_time = time.time()
+            done=False
+            env.reset()
+            self.epsilon=0
+            for k in test_boards:
+                q_list=self.get_qs(k.flatten())
+                test_qs[i].append(q_list)
+
+            while(not done):
+                current_state = env.get_board().flatten()
+                action=self.select_action(env)
+                state=np.copy(env.get_board())
+                qs=self.get_qs(state.flatten())
+                print(qs)
+                print(tf.argsort(qs,direction='DESCENDING').numpy())
+                env.play(action)
+                new_state = env.get_board().flatten()
+                board_state = env.is_winner()
+                if env.is_draw():
+                    done = True
+                    reward = self.reward_draw
+                elif board_state == 1:
+                    done = True
+                    reward = self.reward_win
+                elif board_state == -1:
+                    done = True
+                    reward = self.reward_lose
+                else:
+                    reward = self.reward_action
+                transition = [current_state, action, new_state, reward, done]
+                self.memory.append(transition)
+            if self.epsilon > self.epsilon_min:
+                self.epsilon *= self.epsilon_decay
+            self.train()
+        counter=0
+        for s in test_boards:
+            print(s)
+            print
+            #episode_end_time = time.time()
+            #elapsed_time = episode_end_time - start_time
+            #episode_duration = episode_end_time - episode_start_time
+            #estimated_total_time = episode_duration * self.episodes
+            #remaining_time = estimated_total_time - elapsed_time
+
+
+
 
 def format_time(seconds):
     days = seconds // (24 * 3600)
@@ -212,4 +265,4 @@ def format_time(seconds):
 
 if __name__ == "__main__":
     trainer = TrainNetwork()
-    trainer.run_training()
+    trainer.test_training()
