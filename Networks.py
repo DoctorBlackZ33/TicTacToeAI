@@ -7,57 +7,74 @@ from collections import deque #deque seems to be a faster alternative to lists a
 from environment import TicTacToe
 import variables as glob
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.optimizers.schedules import ExponentialDecay
 import matplotlib
 matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
 
 class QNetwork():
     def __init__(self, player):
-        self.layer_count=glob.layer_count
-        self.layer_size=glob.layer_size
-        #creating the model
+        self.layer_count = glob.layer_count
+        self.layer_size = glob.layer_size
+        self.dropout_rate = glob.dropout_rate # Dropout rate
+        self.initial_learning_rate=glob.initial_learning_rate
+        
+        # Creating the model
         self.model = self.create_model()
-        #creating model to predict future state
+        
+        # Creating model to predict future state
         self.target_model = self.create_model()
-        #setting the weights for the models equal so the evaluate the same thing
+        
+        # Setting the weights for the models equal so they evaluate the same thing
         self.target_model.set_weights(self.model.get_weights())
-        #creating training history
+        
+        # Creating training history
         self.history = deque()
 
-        self.episodes=glob.episodes
-        self.synch_every_n_episodes = glob.synch_every_n_episodes #after how many episodes the target model should set its weights to the model to keep up with the state of the training 
-        #memory should have form [current_state, action, new_state, reward, done] 
-        self.memory = deque() #check for the max memory size in the code and then just let it overfill till the current game is done and terminate then
+        self.episodes = glob.episodes
+        self.synch_every_n_episodes = glob.synch_every_n_episodes
+        self.memory = deque()
         self.min_memory_size = glob.min_memory_size
-        self.alpha = glob.alpha #learning rate 
-        self.gamma = glob.gamma #discount factor
+        self.alpha = glob.alpha  # Learning rate 
+        self.gamma = glob.gamma  # Discount factor
         self.batch_size = glob.batch_size 
-        self.synch_counter = 0#initialising the synch_counter
+        self.synch_counter = 0
         self.epsilon = glob.epsilon
         self.epsilon_decay = glob.epsilon_decay
         self.epsilon_min = glob.epsilon_min
 
         self.test_qs = []
-        self.player =player
+        self.player = player
         self.win = glob.win
-        self.draw=glob.draw
+        self.draw = glob.draw
         self.lose = glob.lose
-        self.valid_action=glob.valid_action
-        self.invalid_action=glob.invalid_action
+        self.valid_action = glob.valid_action
+        self.invalid_action = glob.invalid_action
+
 
     def create_model(self):
-        #Model configuration
+        lr_schedule = ExponentialDecay(
+            self.initial_learning_rate,
+            decay_steps=100000,
+            decay_rate=0.97,
+            staircase=True
+        )
+        optimizer = Adam(learning_rate=lr_schedule)
+
+        # Model configuration
         model = Sequential()
-    
         model.add(tf.keras.layers.Input(shape=(9,)))
         
         for _ in range(self.layer_count):
             model.add(Dense(self.layer_size, activation='relu'))
+            model.add(BatchNormalization())
+            model.add(Dropout(self.dropout_rate))
         
         model.add(Dense(9, activation='linear'))
 
-        model.compile(loss='mean_squared_error', optimizer='adam', metrics=['accuracy'])
+        model.compile(loss='mean_squared_error', optimizer=optimizer, metrics=['accuracy'])
 
         return model
 
@@ -159,13 +176,18 @@ class Training():
         start_time = time.time()
         env=self.env
         test_boards = (
-            np.zeros((3, 3), dtype=int),
             np.array(([0, 0, 0], [0, 0, 0], [0, 0, 0]), dtype=int),
             np.array(([0, 0, 0], [0, 1, 0], [0, 0, 0]), dtype=int),
             np.array(([1, 1, 0], [-1, 0, -1], [0, 0, 0]), dtype=int),
             np.array(([1, 0, 0], [0, -1, 0], [-1, 1, 0]), dtype=int),
             np.array(([0, -1, 0], [0, 1, -1], [0, 0, 1]), dtype=int),
-            np.array(([1, -1, 1], [-1, -1, 1], [0, 0, -1]), dtype=int)
+            np.array(([1, 1, 0], [-1, -1, 0], [-1, 1, 0]), dtype=int),
+            np.array(([1, -1, 0], [1, -1, 0], [0, 0, 0]), dtype=int),
+            np.array(([1, -1, 0], [1, -1, 0], [0, 0, 1]), dtype=int),
+            np.array(([1, 0, 0], [0, -1, 0], [0, 0, 1]), dtype=int),
+            np.array(([1, -1, 0], [0, 1, 0], [0, 0, -1]), dtype=int),
+            np.array(([-1, 1, 1], [0, -1, 0], [0, 0, 1]), dtype=int),
+            np.array(([1, -1, 1], [-1, -1, 1], [1, 0, 0]), dtype=int)
         )
 
         for i in tqdm(range(self.episodes), desc="Training Progress", unit="episode"):
@@ -193,34 +215,37 @@ class Training():
             self.train_on_batch(self.p2)
         # Initialize array to store sorted Q-values for all boards
         sorted_q_values_for_all_boards = np.zeros((9, len(test_boards)))
+        player_list=(self.p1, self.p2)
+        player_id=1
+        for player in player_list:
+            # Plotting the Q-values for each board configuration over episodes
+            for board_idx in range(len(test_boards)):
+                fig, ax = plt.subplots(figsize=(19.2, 10.8))
+                ax.set_title(f'Player {player_id} Q-values for Board Configuration {board_idx + 1}')
+                ax.set_xlabel('Episode')
+                ax.set_ylabel('Q-values')
+                
+                final_q_values = []
 
-        # Plotting the Q-values for each board configuration over episodes
-        for board_idx in range(len(test_boards)):
-            fig, ax = plt.subplots(figsize=(19.2, 10.8))
-            ax.set_title(f'Q-values for Board Configuration {board_idx + 1}')
-            ax.set_xlabel('Episode')
-            ax.set_ylabel('Q-values')
-            
-            final_q_values = []
+                for action_idx in range(9):
+                    q_values_over_time = [player.test_qs[episode][board_idx][action_idx] for episode in range(self.episodes)]
+                    ax.plot(q_values_over_time, label=f'Action {action_idx}')
+                    final_q_values.append((action_idx, q_values_over_time[-1]))
 
-            for action_idx in range(9):
-                q_values_over_time = [self.p1.test_qs[episode][board_idx][action_idx] for episode in range(self.episodes)]
-                ax.plot(q_values_over_time, label=f'Action {action_idx}')
-                final_q_values.append((action_idx, q_values_over_time[-1]))
+                # Sort the final Q-values from highest to lowest
+                final_q_values.sort(key=lambda x: x[1], reverse=True)
 
-            # Sort the final Q-values from highest to lowest
-            final_q_values.sort(key=lambda x: x[1], reverse=True)
+                # Store the sorted Q-values in the array
+                for rank, (action_idx, q_value) in enumerate(final_q_values):
+                    sorted_q_values_for_all_boards[rank, board_idx] = q_value
 
-            # Store the sorted Q-values in the array
-            for rank, (action_idx, q_value) in enumerate(final_q_values):
-                sorted_q_values_for_all_boards[rank, board_idx] = q_value
-
-            # Create custom legend with sorted Q-values
-            legend_labels = [f'Action {idx}: {value:.2f}' for idx, value in final_q_values]
-            ax.legend(legend_labels, loc='center left', bbox_to_anchor=(1, 0.5))
-            
-            plt.savefig(f'q_values_board_{board_idx + 1}.png')
-            plt.close(fig)
+                # Create custom legend with sorted Q-values
+                legend_labels = [f'Action {idx}: {value:.2f}' for idx, value in final_q_values]
+                ax.legend(legend_labels, loc='center left', bbox_to_anchor=(1, 0.5))
+                
+                plt.savefig(f'player_{player_id}_q_values_board_{board_idx + 1}.png')
+                plt.close(fig)
+            player_id += 1
 
             episode_end_time = time.time()
             elapsed_time = episode_end_time - start_time
