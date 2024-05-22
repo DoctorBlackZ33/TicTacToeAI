@@ -1,5 +1,0 @@
-tensorflow==2.16.1
-numpy
-streamlit
-matplotlib
-dearpygui
