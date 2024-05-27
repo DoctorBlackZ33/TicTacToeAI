@@ -62,6 +62,14 @@ class TicTacToe():
                 if self.board[i,j] != 0:
                     invalid_actions.append((i,j))
         return invalid_actions
+
+    def get_valid_actions(self):
+        valid_actions = []
+        for i in range(3):
+            for j in range(3):
+                if self.board[i,j] == 0:
+                    valid_actions.append((i,j))
+        return valid_actions
     
     def do_action(self, action):
         self.board[action[0], action[1]] = self.turn

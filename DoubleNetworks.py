@@ -93,7 +93,7 @@ class QNetwork():
             return self.model(np.array([state]), training=False)[0]
         elif network == 2:
             return self.second_model(np.array([state]), training=False)[0]
-
+    '''
     def choose_action(self, network, env):
         actions = env.get_all_actions()
         state = np.copy(env.get_board()).flatten()
@@ -104,6 +104,27 @@ class QNetwork():
             q_max_index = tf.argmax(qs)
             action = actions[(int(q_max_index/3) + q_max_index % 3)]
             return action
+    '''
+    
+    def choose_action(self, network, env):
+        actions = env.get_all_actions()
+        state = np.copy(env.get_board()).flatten()
+        valid_actions = env.get_valid_actions()
+        print(valid_actions)
+        if np.random.uniform(0, 1) < self.epsilon:
+            return random.choice(valid_actions)
+        else:
+            qs = self.get_qs(network, state)
+            sorted_indices = np.argsort(qs)[::-1]  # Sort indices in descending order
+            print(sorted_indices)
+            for i in sorted_indices:
+                action = (int(i // 3), int(i % 3))
+                if action in valid_actions:
+                    print(action)
+                    return action
+            # In case no valid action was found (should not happen), fall back to random valid action
+            return random.choice(valid_actions)
+
 
     def update_epsilon(self):
         if self.epsilon > self.epsilon_min:
@@ -274,9 +295,11 @@ class Training():
                     )
 
                 current_qs = current_qs_list[index]
+                print("X: " + str(transition[0]) + "   Y: " + str(current_qs)+ "   q: " + str(q) + "   action: " + str(action_to_board))
                 current_qs[action_to_board] = q
                 x.append(transition[0])
                 y.append(current_qs)
+
 
                 index += 1
 
@@ -419,7 +442,7 @@ class Training():
         self.p2.model.save(os.path.join(self.save_dir, 'tictactoe_model_player2.keras'))
 
 # Specify the folder to save models and graphs
-save_dir = "test11/"
+save_dir = "test14/"
 
 p1 = QNetwork(1)
 p2 = QNetwork(-1)
