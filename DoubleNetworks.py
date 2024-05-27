@@ -126,7 +126,6 @@ class Training():
             invalid_actions = self.env.get_invalid_actions()
             self.env.do_action(action)
             condition = self.env.check_board_condition()
-            done = self.env.get_isDone()
 
             if action in invalid_actions:
                 player.illegal_moves += 1
@@ -163,10 +162,10 @@ class Training():
             elif condition is None:
                 reward = player.valid_action
 
+            done = self.env.get_isDone()
             new_state = np.copy(self.env.get_board()).flatten()
             transition = [current_state, action, new_state, reward, done]
             player.memory.append(transition)
-
             return done
 
         elif network == 2:
@@ -175,7 +174,6 @@ class Training():
             invalid_actions = self.env.get_invalid_actions()
             self.env.do_action(action)
             condition = self.env.check_board_condition()
-            done = self.env.get_isDone()
 
             if action in invalid_actions:
                 self.env.set_isDone(True)
@@ -205,6 +203,7 @@ class Training():
             elif condition is None:
                 reward = player.valid_action
 
+            done = self.env.get_isDone()
             new_state = np.copy(self.env.get_board()).flatten()
             transition = [current_state, action, new_state, reward, done]
             player.second_memory.append(transition)
@@ -354,7 +353,7 @@ class Training():
             num_of_actions.append(actions)
             num_of_actions2.append(actions2)
             self.p1.update_epsilon()
-            self.p2.update_epsilon()  
+            self.p2.update_epsilon()
             self.train_on_batch(1, self.p1)
             self.train_on_batch(1, self.p2)
             self.train_on_batch(2, self.p1)
@@ -420,7 +419,7 @@ class Training():
         self.p2.model.save(os.path.join(self.save_dir, 'tictactoe_model_player2.keras'))
 
 # Specify the folder to save models and graphs
-save_dir = "test13/"
+save_dir = "test11/"
 
 p1 = QNetwork(1)
 p2 = QNetwork(-1)

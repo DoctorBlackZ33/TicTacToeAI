@@ -1,17 +1,17 @@
-layer_count=3
+layer_count=2
 layer_size=9
-dropout_rate=0.3
-initial_learning_rate=0.05
+dropout_rate=0.1
+initial_learning_rate=0.001
 
-episodes=15000
+episodes=6000
 synch_every_n_episodes=15
-max_memory_size = 5000
-min_memory_size=500
+max_memory_size = 4000
+min_memory_size=300
 alpha=0.1
 gamma=0.8
 batch_size=128
 epsilon=1
-epsilon_decay=0.99
+epsilon_decay=0.9995
 epsilon_min=0.1
 win=1
 draw=0.5
