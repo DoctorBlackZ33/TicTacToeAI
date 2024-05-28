@@ -95,7 +95,7 @@ class QNetwork():
             return self.model(np.array([state]), training=False)[0]
         elif network == 2:
             return self.second_model(np.array([state]), training=False)[0]
-    ''' 
+    '''
     def choose_action(self, network, env):
         actions = env.get_all_actions()
         state = np.copy(env.get_board()).flatten()
@@ -109,7 +109,6 @@ class QNetwork():
     
     '''
     def choose_action(self, network, env):
-        actions = env.get_all_actions()
         state = np.copy(env.get_board()).flatten()
         valid_actions = env.get_valid_actions()
         if np.random.uniform(0, 1) < self.epsilon:
@@ -123,7 +122,8 @@ class QNetwork():
                     return action
             # In case no valid action was found (should not happen), fall back to random valid action
             return random.choice(valid_actions)
-
+    
+            
     def update_variables(self, episode):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
@@ -442,7 +442,7 @@ class Training():
         self.p2.model.save(os.path.join(self.save_dir, 'tictactoe_model_player2.keras'))
 
 # Specify the folder to save models and graphs
-save_dir = "test21/"
+save_dir = "test22/"
 
 p1 = QNetwork(1)
 p2 = QNetwork(-1)
