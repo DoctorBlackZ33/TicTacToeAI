@@ -46,7 +46,9 @@ class QNetwork():
         self.second_memory = deque(maxlen=glob.max_memory_size)
         self.min_memory_size = glob.min_memory_size
         self.alpha = glob.alpha
+        self.alpha_decay = glob.alpha_decay
         self.gamma = glob.gamma
+        self.gamma_build_up_speed=glob.gamma_build_up_speed
         self.batch_size = glob.batch_size
         self.epsilon = glob.epsilon
         self.epsilon_decay = glob.epsilon_decay
@@ -68,8 +70,8 @@ class QNetwork():
     def create_model(self):
         lr_schedule = ExponentialDecay(
             self.initial_learning_rate,
-            decay_steps=100000,
-            decay_rate=0.97,
+            decay_steps=10000,
+            decay_rate=0.99,
             staircase=True
         )
         optimizer = Adam(learning_rate=lr_schedule)
@@ -93,7 +95,7 @@ class QNetwork():
             return self.model(np.array([state]), training=False)[0]
         elif network == 2:
             return self.second_model(np.array([state]), training=False)[0]
-    '''
+    ''' 
     def choose_action(self, network, env):
         actions = env.get_all_actions()
         state = np.copy(env.get_board()).flatten()
@@ -104,31 +106,29 @@ class QNetwork():
             q_max_index = tf.argmax(qs)
             action = actions[(int(q_max_index/3) + q_max_index % 3)]
             return action
-    '''
     
+    '''
     def choose_action(self, network, env):
         actions = env.get_all_actions()
         state = np.copy(env.get_board()).flatten()
         valid_actions = env.get_valid_actions()
-        print(valid_actions)
         if np.random.uniform(0, 1) < self.epsilon:
             return random.choice(valid_actions)
         else:
             qs = self.get_qs(network, state)
             sorted_indices = np.argsort(qs)[::-1]  # Sort indices in descending order
-            print(sorted_indices)
             for i in sorted_indices:
                 action = (int(i // 3), int(i % 3))
                 if action in valid_actions:
-                    print(action)
                     return action
             # In case no valid action was found (should not happen), fall back to random valid action
             return random.choice(valid_actions)
 
-
-    def update_epsilon(self):
+    def update_variables(self, episode):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
+        self.gamma = 1-1/(np.sqrt(episode+self.gamma_build_up_speed)*(1/self.gamma_build_up_speed))
+        self.alpha *= self.alpha_decay
 
 class Training():
     def __init__(self, p1, p2, save_dir):
@@ -295,7 +295,7 @@ class Training():
                     )
 
                 current_qs = current_qs_list[index]
-                print("X: " + str(transition[0]) + "   Y: " + str(current_qs)+ "   q: " + str(q) + "   action: " + str(action_to_board))
+                #print("X: " + str(transition[0]) + "   Y: " + str(current_qs)+ "   q: " + str(q) + "   action: " + str(action_to_board))
                 current_qs[action_to_board] = q
                 x.append(transition[0])
                 y.append(current_qs)
@@ -375,8 +375,8 @@ class Training():
             
             num_of_actions.append(actions)
             num_of_actions2.append(actions2)
-            self.p1.update_epsilon()
-            self.p2.update_epsilon()
+            self.p1.update_variables(i)
+            self.p2.update_variables(i)
             self.train_on_batch(1, self.p1)
             self.train_on_batch(1, self.p2)
             self.train_on_batch(2, self.p1)
@@ -442,7 +442,7 @@ class Training():
         self.p2.model.save(os.path.join(self.save_dir, 'tictactoe_model_player2.keras'))
 
 # Specify the folder to save models and graphs
-save_dir = "test14/"
+save_dir = "test21/"
 
 p1 = QNetwork(1)
 p2 = QNetwork(-1)
