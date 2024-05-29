@@ -140,6 +140,84 @@ class Training():
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
 
+    def update_memory_with_game(self, network):
+        players =[self.p1, self.p2]
+        states = []
+        actions = []
+        rewards = []
+        dones = []
+        done = False
+        num_of_actions = 0
+        while not done:
+            for player in players:
+                state, action, reward, done = self.play_move(player)
+                states.append(state)
+                actions.append(action)
+                rewards.append(reward)
+                dones.append(done)
+                num_of_actions += 1
+                if done:
+                    states.append(np.copy(self.env.get_board()).flatten())
+                    break
+        self.env.reset()
+        
+        transitions = []
+        for i in range(len(dones)):
+            if not dones[i]:
+                transition=[states[i], actions[i],states[i+2],rewards[i], dones[i]]
+            elif dones[i]:
+                transition=[states[i], actions[i],states[i+1],rewards[i], dones[i]]
+                transitions[-1][-1] = True
+                if self.p1.win== rewards[i]:
+                    transitions[-1][-2] = self.p1.lose
+                elif self.p1.lose == rewards[i]:
+                    transitions[-1][-2] = self.p1.win
+
+            transitions.append(transition)
+        if network == 1:
+            for i in range(len(transitions)):
+                if i%2 == 0:
+                    self.p1.memory.append(transitions[i])
+                elif i%2 == 1:
+                    self.p2.memory.append(transitions[i])
+        elif network == 2:
+            for i in range(len(transitions)):
+                if i%2 == 0:
+                    self.p1.second_memory.append(transitions[i])
+                elif i%2 == 1:
+                    self.p2.second_memory.append(transitions[i])
+        return len(actions)
+                
+            
+    def play_move(self, player):
+        state=np.copy(self.env.get_board()).flatten()
+        action = player.choose_action(1, self.env)
+        self.env.do_action(action)
+        condition= self.env.check_board_condition()
+
+        if condition == player.player:
+            player.wins += 1
+            reward = player.win
+            done = True
+
+            if player.player == 1:
+                self.p2.losses += 1
+
+            elif player.player == -1:
+                self.p1.losses += 1
+
+        elif condition == 0:
+            self.p1.draws += 1
+            self.p2.draws += 1
+            reward = player.draw
+            done = True
+
+        elif condition is None:
+            reward = player.valid_action
+            done = False
+
+        return state, action, reward, done
+    '''
     def update_replay_memory(self, network, player):
         if network == 1:
             current_state = np.copy(self.env.get_board()).flatten()
@@ -148,40 +226,6 @@ class Training():
             self.env.do_action(action)
             condition = self.env.check_board_condition()
 
-            if action in invalid_actions:
-                player.illegal_moves += 1
-                self.env.set_isDone(True)
-                reward = player.invalid_action
-
-            elif condition == player.player:
-                player.wins += 1
-                reward = player.win
-
-                if player.player == 1:
-                    self.p2.memory[-1][3] = self.p2.lose
-                    self.p2.memory[-1][4] = True
-                    self.p2.losses += 1
-
-                elif player.player == -1:
-                    self.p1.memory[-1][3] = self.p2.lose
-                    self.p1.memory[-1][4] = True
-                    self.p1.losses += 1
-
-            elif condition == 0:
-                self.p1.draws += 1
-                self.p2.draws += 1
-                reward = player.draw
-
-                if player.player == 1:
-                    self.p2.memory[-1][3] = self.p2.draw
-                    self.p2.memory[-1][4] = True
-
-                elif player.player == -1:
-                    self.p1.memory[-1][3] = self.p2.draw
-                    self.p1.memory[-1][4] = True
-
-            elif condition is None:
-                reward = player.valid_action
 
             done = self.env.get_isDone()
             new_state = np.copy(self.env.get_board()).flatten()
@@ -229,7 +273,7 @@ class Training():
             transition = [current_state, action, new_state, reward, done]
             player.second_memory.append(transition)
             return done
-
+    '''
     def train_on_batch(self, network, player):
         if network == 1:
             if len(player.memory) < player.min_memory_size:
@@ -356,22 +400,9 @@ class Training():
                 q_list = self.p2.get_qs(1, k.flatten())
                 self.p2.test_qs[i].append(q_list)
             
-            while not done:
-                done = self.update_replay_memory(1, self.p1)
-                actions += 1
-                if done:
-                    break
-                done = self.update_replay_memory(1, self.p2)
-                actions2 += 1
+            actions = self.update_memory_with_game(1)
+            actions2 = self.update_memory_with_game(2)
             
-            env.reset()
-            done = False
-
-            while not done:
-                done = self.update_replay_memory(2, self.p1)
-                if done:
-                    break
-                done = self.update_replay_memory(2, self.p2)
             
             num_of_actions.append(actions)
             num_of_actions2.append(actions2)
@@ -442,7 +473,7 @@ class Training():
         self.p2.model.save(os.path.join(self.save_dir, 'tictactoe_model_player2.keras'))
 
 # Specify the folder to save models and graphs
-save_dir = "test22/"
+save_dir = "test23/"
 
 p1 = QNetwork(1)
 p2 = QNetwork(-1)
