@@ -16,11 +16,12 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay
 
 class QNetwork():
-    def __init__(self, player):
+    def __init__(self, player, loss_function):
         self.layer_count = glob.layer_count
         self.layer_size = glob.layer_size
         self.dropout_rate = glob.dropout_rate
         self.initial_learning_rate = glob.initial_learning_rate
+        self.loss_function = loss_function
         
         # Creating the model
         self.model = self.create_model()
@@ -86,7 +87,7 @@ class QNetwork():
         
         model.add(Dense(9, activation='linear'))
 
-        model.compile(loss='mean_squared_error', optimizer=optimizer, metrics=['accuracy'])
+        model.compile(loss=self.loss_function, optimizer=optimizer, metrics=['accuracy'])
 
         return model
 
@@ -371,18 +372,18 @@ class Training():
         start_time = time.time()
         env = self.env
         test_boards = (
-            np.array(([0, 0, 0], [0, 0, 0], [0, 0, 0]), dtype=int),
-            np.array(([0, 0, 0], [0, 1, 0], [0, 0, 0]), dtype=int),
-            np.array(([1, 1, 0], [-1, 0, -1], [0, 0, 0]), dtype=int),
-            np.array(([1, 0, 0], [0, -1, 0], [-1, 1, 0]), dtype=int),
-            np.array(([0, -1, 0], [0, 1, -1], [0, 0, 1]), dtype=int),
-            np.array(([1, 1, 0], [-1, -1, 0], [-1, 1, 0]), dtype=int),
-            np.array(([1, -1, 0], [1, -1, 0], [0, 0, 0]), dtype=int),
-            np.array(([1, -1, 0], [1, -1, 0], [0, 0, 1]), dtype=int),
-            np.array(([1, 0, 0], [0, -1, 0], [0, 0, 1]), dtype=int),
-            np.array(([1, -1, 0], [0, 1, 0], [0, 0, -1]), dtype=int),
-            np.array(([-1, 1, 1], [0, -1, 0], [0, 0, 1]), dtype=int),
-            np.array(([1, -1, 1], [-1, -1, 1], [1, 0, 0]), dtype=int)
+            np.array(([0, 0, 0], [0, 0, 0], [0, 0, 0]), dtype=int),     # 1
+            np.array(([0, 0, 0], [0, 1, 0], [0, 0, 0]), dtype=int),     # 2
+            np.array(([1, 1, 0], [-1, 0, -1], [0, 0, 0]), dtype=int),   # 3
+            np.array(([1, 0, 0], [0, -1, 0], [-1, 1, 0]), dtype=int),   # 4
+            np.array(([0, -1, 0], [0, 1, -1], [0, 0, 1]), dtype=int),   # 5
+            np.array(([1, 1, 0], [-1, -1, 0], [-1, 1, 0]), dtype=int),  # 6
+            np.array(([1, -1, 0], [1, -1, 0], [0, 0, 0]), dtype=int),   # 7
+            np.array(([1, -1, 0], [1, -1, 0], [0, 0, 1]), dtype=int),   # 8 
+            np.array(([1, 0, 0], [0, -1, 0], [0, 0, 1]), dtype=int),    # 9
+            np.array(([1, -1, 0], [0, 1, 0], [0, 0, -1]), dtype=int),   # 10
+            np.array(([-1, 1, 1], [0, -1, 0], [0, 0, 1]), dtype=int),   # 11
+            np.array(([1, -1, 1], [-1, -1, 1], [1, 0, 0]), dtype=int)   # 12
         )
         num_of_actions = []
         num_of_actions2 = []
@@ -473,9 +474,9 @@ class Training():
         self.p2.model.save(os.path.join(self.save_dir, 'tictactoe_model_player2.keras'))
 
 # Specify the folder to save models and graphs
-save_dir = "test23/"
-
-p1 = QNetwork(1)
-p2 = QNetwork(-1)
+save_dir = "final_trainings/2"
+#losses = [keras.losses.CategoricalCrossentropy(), keras.losses.CategoricalFocalCrossentropy(),keras.losses.SparseCategoricalCrossentropy(),keras.losses.CategoricalHinge]
+p1 = QNetwork(1, tf.keras.losses.CategoricalCrossentropy())
+p2 = QNetwork(-1, tf.keras.losses.CategoricalCrossentropy())
 Manager = Training(p1, p2, save_dir)
 Manager.run_training()

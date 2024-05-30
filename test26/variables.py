@@ -1,0 +1,22 @@
+layer_count=3
+layer_size=18
+dropout_rate=0.1
+initial_learning_rate=0.001
+
+episodes=10000
+synch_every_n_episodes=100
+max_memory_size = 30000
+min_memory_size=500
+alpha=0.001
+alpha_decay = 0.9999
+gamma=0.4 #redundant as of right now, gamma_build_up_speed replaced this
+gamma_build_up_speed=800
+batch_size=64
+epsilon=1
+epsilon_decay=0.9998
+epsilon_min=0.2
+win=1
+draw=0.5
+lose=-1
+valid_action=0.01
+invalid_action=-1
