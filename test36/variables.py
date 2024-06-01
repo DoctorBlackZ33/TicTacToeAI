@@ -1,13 +1,12 @@
 layer_sizes=[256,128,128]
 dropout_rate=0.3
-initial_learning_rate=0.001
-tau = 0.125
+initial_learning_rate=0.0001
 
-episodes=4000
-synch_every_n_episodes = 100
+episodes=15000
+synch_every_n_episodes = 1000
 max_memory_size = 25000
 min_memory_size= 300
-alpha=0.001
+alpha=0.00001
 alpha_decay = 0.9999
 gamma=0.4 #redundant as of right now, gamma_build_up_speed replaced this
 gamma_build_up_speed=500

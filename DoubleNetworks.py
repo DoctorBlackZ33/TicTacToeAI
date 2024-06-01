@@ -1,4 +1,5 @@
 import os
+import csv
 import tensorflow as tf
 import numpy as np
 import random
@@ -14,14 +15,15 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay
+from keras.utils import to_categorical
 
 class QNetwork():
     def __init__(self, player, loss_function):
-        self.layer_count = glob.layer_count
-        self.layer_size = glob.layer_size
+        self.layer_sizes = glob.layer_sizes
         self.dropout_rate = glob.dropout_rate
         self.initial_learning_rate = glob.initial_learning_rate
         self.loss_function = loss_function
+        self.tau = glob.tau
         
         # Creating the model
         self.model = self.create_model()
@@ -78,24 +80,50 @@ class QNetwork():
         optimizer = Adam(learning_rate=lr_schedule)
 
         model = Sequential()
-        model.add(tf.keras.layers.Input(shape=(9,)))
+        model.add(tf.keras.layers.Input(shape=(27,)))
         
-        for _ in range(self.layer_count):
-            model.add(Dense(self.layer_size, activation='relu'))
+        for layer_size in self.layer_sizes:
+            model.add(Dense(layer_size, activation='relu'))
             model.add(BatchNormalization())
             model.add(Dropout(self.dropout_rate))
         
         model.add(Dense(9, activation='linear'))
 
         model.compile(loss=self.loss_function, optimizer=optimizer, metrics=['accuracy'])
-
+        model.summary()
         return model
+    
+    def update_target_weights(self):
+        weights = self.model.get_weights()
+        target_weights = self.target_model.get_weights()
 
+        for index, (weight, target_weight) in enumerate(zip(weights, target_weights)):
+            target_weight = weight * self.tau + target_weight * (1 - self.tau)
+            target_weights[index] = target_weight
+
+        self.target_model.set_weights(target_weights)
+    
+    def update_second_target_weights(self):
+        weights = self.second_model.get_weights()
+        target_weights = self.second_target_model.get_weights()
+
+        for index, (weight, target_weight) in enumerate(zip(weights, target_weights)):
+            target_weight = weight * self.tau + target_weight * (1 - self.tau)
+            target_weights[index] = target_weight
+
+        self.second_target_model.set_weights(target_weights)
+
+    def preprocess_state(self, state):
+        flattened_state = state.flatten()
+        adjusted_state = flattened_state + 1  # Shift values to be non-negative
+        one_hot_encoded = to_categorical(adjusted_state, num_classes=3)
+        return one_hot_encoded.flatten().reshape(1, -1)  # Return as a 1D array
+    
     def get_qs(self, network, state):
         if network == 1:
-            return self.model(np.array([state]), training=False)[0]
+            return self.model(self.preprocess_state(state), training=False)[0]
         elif network == 2:
-            return self.second_model(np.array([state]), training=False)[0]
+            return self.second_model(self.preprocess_state(state), training=False)[0]
     '''
     def choose_action(self, network, env):
         actions = env.get_all_actions()
@@ -140,6 +168,17 @@ class Training():
         self.save_dir = save_dir
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
+
+    def log_transition(self,episode, transition, q_value, x, y, gamma, file_path):
+        header = ["Episode", "State", "Action", "Next State", "Reward", "Done", "Q Value", "before action q values", "after action q values", "gamma"]
+        row = [episode, transition[0].tolist(), transition[1], transition[2].tolist(), transition[3], transition[4], q_value, x.tolist(), y.tolist(), gamma]
+
+        file_exists = os.path.isfile(file_path)
+        with open(file_path, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            if not file_exists:
+                writer.writerow(header)
+            writer.writerow(row)
 
     def update_memory_with_game(self, network):
         players =[self.p1, self.p2]
@@ -275,14 +314,14 @@ class Training():
             player.second_memory.append(transition)
             return done
     '''
-    def train_on_batch(self, network, player):
+    def train_on_batch(self, network, episode,player):
         if network == 1:
             if len(player.memory) < player.min_memory_size:
                 return
             batch = random.sample(player.memory, player.batch_size)
-            current_states = np.array([transition[0] for transition in batch])
+            current_states = np.array([player.preprocess_state(transition[0]) for transition in batch]).reshape(player.batch_size, -1)
             current_qs_list = player.model(current_states, training=False).numpy()
-            new_states = np.array([transition[2] for transition in batch])
+            new_states = np.array([player.preprocess_state(transition[2]) for transition in batch]).reshape(player.batch_size, -1)
             new_qs_list = player.target_model(new_states, training=False).numpy()
             second_new_qs_list = player.second_model(new_states, training=False).numpy()
             index = 0
@@ -301,18 +340,23 @@ class Training():
 
                 current_qs = current_qs_list[index]
                 current_qs[action_to_board] = q
-                x.append(transition[0])
+                x.append(player.preprocess_state(transition[0]))
                 y.append(current_qs)
 
+                if player == self.p1:
+                    # Log the transition
+                    self.log_transition(episode, transition, q, current_qs_list[index], current_qs, self.p1.gamma, file_path=os.path.join(self.save_dir, "training_log_player1.csv"))
+                elif player == self.p2:
+                    self.log_transition(episode, transition, q, current_qs_list[index], current_qs, self.p1.gamma, file_path=os.path.join(self.save_dir, "training_log_player2.csv"))
                 index += 1
 
             if player.synch_counter >= player.synch_every_n_episodes:
-                history = player.model.fit(np.array(x), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
+                history = player.model.fit(np.array(x).reshape(player.batch_size, -1), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
                 player.history.append(history.history)
-                player.target_model.set_weights(player.model.get_weights())
+                player.update_target_weights()
                 player.synch_counter = 0
             else:
-                history = player.model.fit(np.array(x), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
+                history = player.model.fit(np.array(x).reshape(player.batch_size, -1), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
                 player.history.append(history.history)
                 player.synch_counter += 1
 
@@ -320,9 +364,9 @@ class Training():
             if len(player.second_memory) < player.min_memory_size:
                 return
             batch = random.sample(player.second_memory, player.batch_size)
-            current_states = np.array([transition[0] for transition in batch])
+            current_states = np.array([player.preprocess_state(transition[0]) for transition in batch]).reshape(player.batch_size, -1)
             current_qs_list = player.second_model(current_states, training=False).numpy()
-            new_states = np.array([transition[2] for transition in batch])
+            new_states = np.array([player.preprocess_state(transition[2]) for transition in batch]).reshape(player.batch_size, -1)
             new_qs_list = player.second_target_model(new_states, training=False).numpy()
             second_new_qs_list = player.model(new_states, training=False).numpy()
             index = 0
@@ -342,19 +386,19 @@ class Training():
                 current_qs = current_qs_list[index]
                 #print("X: " + str(transition[0]) + "   Y: " + str(current_qs)+ "   q: " + str(q) + "   action: " + str(action_to_board))
                 current_qs[action_to_board] = q
-                x.append(transition[0])
+                x.append(player.preprocess_state(transition[0]))
                 y.append(current_qs)
 
 
                 index += 1
 
-            if player.synch_counter >= player.synch_every_n_episodes:
-                history = player.second_model.fit(np.array(x), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
+            if player.second_synch_counter >= player.synch_every_n_episodes:
+                history = player.second_model.fit(np.array(x).reshape(player.batch_size, -1), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=1)
                 player.second_history.append(history.history)
-                player.second_target_model.set_weights(player.model.get_weights())
+                player.update_second_target_weights()
                 player.second_synch_counter = 0
             else:
-                history = player.second_model.fit(np.array(x), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
+                history = player.second_model.fit(np.array(x).reshape(player.batch_size, -1), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
                 player.second_history.append(history.history)
                 player.second_synch_counter += 1
     
@@ -409,11 +453,11 @@ class Training():
             num_of_actions2.append(actions2)
             self.p1.update_variables(i)
             self.p2.update_variables(i)
-            self.train_on_batch(1, self.p1)
-            self.train_on_batch(1, self.p2)
-            self.train_on_batch(2, self.p1)
-            self.train_on_batch(2, self.p2)
-        
+            self.train_on_batch(1, i,self.p1)
+            self.train_on_batch(1, i,self.p2)
+            self.train_on_batch(2, i,self.p1)
+            self.train_on_batch(2, i,self.p2)
+                   
         sorted_q_values_for_all_boards = np.zeros((9, len(test_boards)))
         player_list = (self.p1, self.p2)
         player_id = 1
@@ -473,10 +517,25 @@ class Training():
         self.p1.model.save(os.path.join(self.save_dir, 'tictactoe_model_player1.keras'))
         self.p2.model.save(os.path.join(self.save_dir, 'tictactoe_model_player2.keras'))
 
+
+# List available physical devices
+physical_devices = tf.config.list_physical_devices('GPU')
+print("Available GPUs:", physical_devices)
+
+if physical_devices:
+    try:
+        for gpu in physical_devices:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        print("Memory growth allowed.")
+    except RuntimeError as e:
+        print("RuntimeError:", e)
+else:
+    print("No GPU devices available.")
+
 # Specify the folder to save models and graphs
-save_dir = "final_trainings/2"
-#losses = [keras.losses.CategoricalCrossentropy(), keras.losses.CategoricalFocalCrossentropy(),keras.losses.SparseCategoricalCrossentropy(),keras.losses.CategoricalHinge]
-p1 = QNetwork(1, tf.keras.losses.CategoricalCrossentropy())
-p2 = QNetwork(-1, tf.keras.losses.CategoricalCrossentropy())
+save_dir = "test34"
+#losses = ['mse', keras.losses.CategoricalCrossentropy(), keras.losses.CategoricalFocalCrossentropy(),keras.losses.SparseCategoricalCrossentropy(),keras.losses.CategoricalHinge]
+p1 = QNetwork(1, 'mse')
+p2 = QNetwork(-1, 'mse')
 Manager = Training(p1, p2, save_dir)
 Manager.run_training()
