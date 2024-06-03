@@ -156,7 +156,7 @@ class QNetwork():
     def update_variables(self, episode):
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
-        self.gamma = 1-1/(np.sqrt(episode+self.gamma_build_up_speed)*(1/self.gamma_build_up_speed))
+        self.gamma = 1-1/(np.sqrt((episode+self.gamma_build_up_speed)*(1/self.gamma_build_up_speed)))
         self.alpha *= self.alpha_decay
 
 class Training():
@@ -352,11 +352,15 @@ class Training():
 
             if player.synch_counter >= player.synch_every_n_episodes:
                 history = player.model.fit(np.array(x).reshape(player.batch_size, -1), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
+                if(history.history['loss'][0] > 2):
+                     print("Help")
                 player.history.append(history.history)
                 player.update_target_weights()
                 player.synch_counter = 0
             else:
                 history = player.model.fit(np.array(x).reshape(player.batch_size, -1), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
+                if(history.history['loss'][0] > 2):
+                     print("Help")
                 player.history.append(history.history)
                 player.synch_counter += 1
 
@@ -533,7 +537,7 @@ else:
     print("No GPU devices available.")
 
 # Specify the folder to save models and graphs
-save_dir = "test34"
+save_dir = "test39"
 #losses = ['mse', keras.losses.CategoricalCrossentropy(), keras.losses.CategoricalFocalCrossentropy(),keras.losses.SparseCategoricalCrossentropy(),keras.losses.CategoricalHinge]
 p1 = QNetwork(1, 'mse')
 p2 = QNetwork(-1, 'mse')
