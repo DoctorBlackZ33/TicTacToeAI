@@ -16,6 +16,8 @@ from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay
 from keras.utils import to_categorical
+from tensorflow.keras.initializers import GlorotNormal
+from tensorflow.keras.regularizers import l1_l2
 
 class QNetwork():
     def __init__(self, player, loss_function):
@@ -77,17 +79,17 @@ class QNetwork():
             decay_rate=0.99,
             staircase=True
         )
-        optimizer = Adam(learning_rate=lr_schedule)
+        optimizer = Adam(learning_rate=lr_schedule,clipnorm=2.5)
 
         model = Sequential()
         model.add(tf.keras.layers.Input(shape=(27,)))
         
         for layer_size in self.layer_sizes:
-            model.add(Dense(layer_size, activation='relu'))
+            model.add(Dense(layer_size, activation='relu', kernel_initializer="he_normal", kernel_regularizer=l1_l2(0.01)))
             model.add(BatchNormalization())
             model.add(Dropout(self.dropout_rate))
         
-        model.add(Dense(9, activation='linear'))
+        model.add(Dense(9, activation='linear', kernel_initializer=GlorotNormal()))
 
         model.compile(loss=self.loss_function, optimizer=optimizer, metrics=['accuracy'])
         model.summary()
@@ -332,13 +334,17 @@ class Training():
                 if transition[4]:
                     q = transition[3]
                 else:
-                    q = current_qs_list[index][action_to_board] + player.alpha * (
-                        transition[3] + player.gamma * (
-                            second_new_qs_list[index][np.argmax(new_qs_list[index])]
-                        ) - current_qs_list[index][action_to_board]
-                    )
+                    q = current_qs_list[index][action_to_board] + player.alpha * (transition[3] + player.gamma * (second_new_qs_list[index][np.argmax(new_qs_list[index])]) - current_qs_list[index][action_to_board])
+                    if (q > 1):
+                        print(current_qs_list[index][action_to_board])
+                        print(player.alpha)
+                        print(transition[3])
+                        print(player.gamma)
+                        print(np.argmax(new_qs_list[index]))
+                        print(second_new_qs_list[index][np.argmax(new_qs_list[index])])
+                        print(player.alpha * (transition[3] + player.gamma * (second_new_qs_list[index][np.argmax(new_qs_list[index])]) - current_qs_list[index][action_to_board]))
 
-                current_qs = current_qs_list[index]
+                current_qs = np.copy(current_qs_list[index])
                 current_qs[action_to_board] = q
                 x.append(player.preprocess_state(transition[0]))
                 y.append(current_qs)
@@ -537,9 +543,9 @@ else:
     print("No GPU devices available.")
 
 # Specify the folder to save models and graphs
-save_dir = "test39"
+save_dir = "test45"
 #losses = ['mse', keras.losses.CategoricalCrossentropy(), keras.losses.CategoricalFocalCrossentropy(),keras.losses.SparseCategoricalCrossentropy(),keras.losses.CategoricalHinge]
-p1 = QNetwork(1, 'mse')
-p2 = QNetwork(-1, 'mse')
+p1 = QNetwork(1, 'huber_loss')
+p2 = QNetwork(-1, 'huber_loss')
 Manager = Training(p1, p2, save_dir)
 Manager.run_training()

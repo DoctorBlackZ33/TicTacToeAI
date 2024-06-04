@@ -19,4 +19,4 @@ win=1
 draw=0.5
 lose=-1
 valid_action=0
-invalid_action=0
+invalid_action=-1
