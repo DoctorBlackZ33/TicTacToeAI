@@ -15,7 +15,6 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.optimizers.schedules import ExponentialDecay
-from keras.utils import to_categorical
 from tensorflow.keras.initializers import GlorotNormal
 from tensorflow.keras.regularizers import l1_l2
 
@@ -115,17 +114,12 @@ class QNetwork():
 
         self.second_target_model.set_weights(target_weights)
 
-    def preprocess_state(self, state):
-        flattened_state = state.flatten()
-        adjusted_state = flattened_state + 1  # Shift values to be non-negative
-        one_hot_encoded = to_categorical(adjusted_state, num_classes=3)
-        return one_hot_encoded.flatten().reshape(1, -1)  # Return as a 1D array
     
     def get_qs(self, network, state):
         if network == 1:
-            return self.model(self.preprocess_state(state), training=False)[0]
+            return self.model(state, training=False)[0]
         elif network == 2:
-            return self.second_model(self.preprocess_state(state), training=False)[0]
+            return self.second_model(state, training=False)[0]
     '''
     def choose_action(self, network, env):
         actions = env.get_all_actions()
@@ -133,7 +127,7 @@ class QNetwork():
         if np.random.uniform(0, 1) < self.epsilon:
             return random.choice(actions)
         else:
-            qs = self.get_qs(network, state)
+            qs = self.get_qs(network, env.preprocess_state(state))
             q_max_index = tf.argmax(qs)
             action = actions[(int(q_max_index/3) + q_max_index % 3)]
             return action
@@ -145,7 +139,7 @@ class QNetwork():
         if np.random.uniform(0, 1) < self.epsilon:
             return random.choice(valid_actions)
         else:
-            qs = self.get_qs(network, state)
+            qs = self.get_qs(network, env.preprocess_state(state))
             sorted_indices = np.argsort(qs)[::-1]  # Sort indices in descending order
             for i in sorted_indices:
                 action = (int(i // 3), int(i % 3))
@@ -321,9 +315,9 @@ class Training():
             if len(player.memory) < player.min_memory_size:
                 return
             batch = random.sample(player.memory, player.batch_size)
-            current_states = np.array([player.preprocess_state(transition[0]) for transition in batch]).reshape(player.batch_size, -1)
+            current_states = np.array([self.env.preprocess_state(transition[0]) for transition in batch]).reshape(player.batch_size, -1)
             current_qs_list = player.model(current_states, training=False).numpy()
-            new_states = np.array([player.preprocess_state(transition[2]) for transition in batch]).reshape(player.batch_size, -1)
+            new_states = np.array([self.env.preprocess_state(transition[2]) for transition in batch]).reshape(player.batch_size, -1)
             new_qs_list = player.target_model(new_states, training=False).numpy()
             second_new_qs_list = player.second_model(new_states, training=False).numpy()
             index = 0
@@ -335,18 +329,10 @@ class Training():
                     q = transition[3]
                 else:
                     q = current_qs_list[index][action_to_board] + player.alpha * (transition[3] + player.gamma * (second_new_qs_list[index][np.argmax(new_qs_list[index])]) - current_qs_list[index][action_to_board])
-                    if (q > 1):
-                        print(current_qs_list[index][action_to_board])
-                        print(player.alpha)
-                        print(transition[3])
-                        print(player.gamma)
-                        print(np.argmax(new_qs_list[index]))
-                        print(second_new_qs_list[index][np.argmax(new_qs_list[index])])
-                        print(player.alpha * (transition[3] + player.gamma * (second_new_qs_list[index][np.argmax(new_qs_list[index])]) - current_qs_list[index][action_to_board]))
 
                 current_qs = np.copy(current_qs_list[index])
                 current_qs[action_to_board] = q
-                x.append(player.preprocess_state(transition[0]))
+                x.append(self.env.preprocess_state(transition[0]))
                 y.append(current_qs)
 
                 if player == self.p1:
@@ -358,15 +344,12 @@ class Training():
 
             if player.synch_counter >= player.synch_every_n_episodes:
                 history = player.model.fit(np.array(x).reshape(player.batch_size, -1), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
-                if(history.history['loss'][0] > 2):
-                     print("Help")
                 player.history.append(history.history)
                 player.update_target_weights()
                 player.synch_counter = 0
             else:
                 history = player.model.fit(np.array(x).reshape(player.batch_size, -1), np.array(y), batch_size=player.batch_size, shuffle=False, verbose=0)
-                if(history.history['loss'][0] > 2):
-                     print("Help")
+
                 player.history.append(history.history)
                 player.synch_counter += 1
 
@@ -374,9 +357,9 @@ class Training():
             if len(player.second_memory) < player.min_memory_size:
                 return
             batch = random.sample(player.second_memory, player.batch_size)
-            current_states = np.array([player.preprocess_state(transition[0]) for transition in batch]).reshape(player.batch_size, -1)
+            current_states = np.array([self.env.preprocess_state(transition[0]) for transition in batch]).reshape(player.batch_size, -1)
             current_qs_list = player.second_model(current_states, training=False).numpy()
-            new_states = np.array([player.preprocess_state(transition[2]) for transition in batch]).reshape(player.batch_size, -1)
+            new_states = np.array([self.env.preprocess_state(transition[2]) for transition in batch]).reshape(player.batch_size, -1)
             new_qs_list = player.second_target_model(new_states, training=False).numpy()
             second_new_qs_list = player.model(new_states, training=False).numpy()
             index = 0
@@ -396,7 +379,7 @@ class Training():
                 current_qs = current_qs_list[index]
                 #print("X: " + str(transition[0]) + "   Y: " + str(current_qs)+ "   q: " + str(q) + "   action: " + str(action_to_board))
                 current_qs[action_to_board] = q
-                x.append(player.preprocess_state(transition[0]))
+                x.append(self.env.preprocess_state(transition[0]))
                 y.append(current_qs)
 
 
@@ -450,9 +433,9 @@ class Training():
             actions = 0
             actions2 = 0
             for k in test_boards:
-                q_list = self.p1.get_qs(1, k.flatten())
+                q_list = self.p1.get_qs(1, self.env.preprocess_state(k.flatten()))
                 self.p1.test_qs[i].append(q_list)
-                q_list = self.p2.get_qs(1, k.flatten())
+                q_list = self.p2.get_qs(1, self.env.preprocess_state(k.flatten()))
                 self.p2.test_qs[i].append(q_list)
             
             actions = self.update_memory_with_game(1)

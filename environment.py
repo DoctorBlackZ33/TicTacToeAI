@@ -1,5 +1,6 @@
 import numpy as np
 from tensorflow.keras.models import load_model
+from keras.utils import to_categorical
 
 class TicTacToe():
     def __init__(self, player1, player2):
@@ -8,6 +9,12 @@ class TicTacToe():
         self.player2 = player2
         self.turn = 1
         self.isDone = False
+    
+    def preprocess_state(self, state):
+        flattened_state = state.flatten()
+        adjusted_state = flattened_state + 1  # Shift values to be non-negative
+        one_hot_encoded = to_categorical(adjusted_state, num_classes=3)
+        return one_hot_encoded.flatten().reshape(1, -1)  # Return as a 1D array
     
     def reset(self):
         self.board.fill(0)
@@ -82,16 +89,14 @@ def load_models(x_model_path, o_model_path):
     o_model = load_model(o_model_path)
     return x_model, o_model
 
-def predict_action(model, board, valid_actions):
-    max_q_value = -np.inf
+def predict_action(game,model, board, valid_actions):
+    temp_board = board.copy()
+    q_value = model.predict(game.preprocess_state(temp_board), verbose=0)[0]
+    index =np.argsort(q_value)[::-1]
     best_action = None
-    for action in valid_actions:
-        temp_board = board.copy()
-        temp_board[action[0], action[1]] = 1 if model == x_model else -1
-        q_value = model.predict(temp_board.reshape(1, 3, 3, 1), verbose=0)[0]
-        if q_value > max_q_value:
-            max_q_value = q_value
-            best_action = action
+    for i in index:
+        if (int(i/3), i%3) in valid_actions:
+            best_action = (int(i/3), i%3)
     return best_action
 
 def print_board(board):
@@ -113,7 +118,7 @@ def play_game(x_model, o_model):
         else:
             print("AI O's turn")
             valid_actions = game.get_valid_actions()
-            action = predict_action(o_model, game.get_board(), valid_actions)
+            action = predict_action(game,o_model, game.get_board(), valid_actions)
         game.do_action(action)
         result = game.check_board_condition()
         if result is not None:
@@ -127,7 +132,9 @@ def play_game(x_model, o_model):
             break
 
 if __name__ == "__main__":
-    x_model_path = "test26/tictactoe_model_player1.keras"
-    o_model_path = "test26/tictactoe_model_player2.keras"
+    x_model_path = "test45/tictactoe_model_player1.keras"
+    o_model_path = "test45/tictactoe_model_player2.keras"
     x_model, o_model = load_models(x_model_path, o_model_path)
-    play_game(x_model, o_model)
+    num_games = input("how many games? ")
+    for i in range(int(num_games)):
+        play_game(x_model, o_model)
